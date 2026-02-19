@@ -2,7 +2,22 @@
   Sistema MAXSALUD – Automatización de Morosidad Anual
   Autores: Gustavo Dominguez y Alonso Basualdo
 ==========================================================*/
+/*==========================================================
+  Secuencia y Trigger como: Auditoria de errores
+==========================================================*/
 
+CREATE SEQUENCE SQE_ERR_PROCESO
+START WITH 1
+INCREMENT BY 1;
+/
+
+CREATE OR REPLACE TRIGGER TRG_AUDITA_ERRO
+BEFORE INSERT ON ERRORES_PROCESO
+FOR EACH ROW
+BEGIN
+    :NEW.nro_correlativo := SQE_ERR_PROCESO.NEXTVAL;
+END;
+/
 
 /*==========================================================
   PKG: Reglas de descuento por 3ra edad + variables compartidas
@@ -112,6 +127,8 @@ IS
     v_nombre_especialidad VARCHAR2(100);
     -- Solo para comparar
     v_nombre_especialidad_cmp   VARCHAR2(100);
+    --Variable para guardar errores
+    v_err_msg   VARCHAR2(500);
 
     -- Cursor con las atenciones pagadas fuera de plazo del año objetivo
     CURSOR c_morosos IS
@@ -246,6 +263,10 @@ BEGIN
 EXCEPTION
     WHEN OTHERS THEN
         ROLLBACK;
+        v_err_msg := SUBSTR(SQLERRM, 1, 500);
+        INSERT INTO ERRORES_PROCESO (subprograma_error, descripcion_error)
+        VALUES('SP_GENERA_PAGO_MOROSO', v_err_msg);
+        COMMIT;
         DBMS_OUTPUT.PUT_LINE('Error en SP_GENERA_PAGO_MOROSO: ' || SQLERRM);
         RAISE;
 END;
@@ -266,5 +287,8 @@ SELECT *
 FROM PAGO_MOROSO
 ORDER BY FECHA_VENC_PAGO ASC, PAC_NOMBRE ASC;
 
+
+-- Consultamos la tabla de errores para revisar si se documento el error incorporado como prueba manual
+SELECT * FROM ERRORES_PROCESO;
 
 
